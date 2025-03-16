@@ -1,22 +1,21 @@
-import torch.nn as nn
-import torch.nn.functional as F
+# The Flax NNX API.
+from flax import nnx  
+from functools import partial
 
-class CNN(nn.Module):
-    def __init__(self, channels, num_classes):
-        super(CNN, self).__init__()
-        self.conv1 = nn.Conv1d(in_channels=channels, out_channels=32, kernel_size=3)
-        self.conv2 = nn.Conv1d(in_channels=32, out_channels=64, kernel_size=3)
-        self.conv3 = nn.Conv1d(in_channels=64, out_channels=32, kernel_size=3)
-        self.global_avg_pool = nn.AdaptiveAvgPool1d(1)
-        self.fc = nn.Linear(32, num_classes)
+class CNN(nnx.Module):
+    """A simple CNN model"""
 
-    def forward(self, x):
-        x = F.relu(self.conv1(x))
-        x = F.relu(self.conv2(x))
-        x = F.relu(self.conv3(x))
+    def __init__(self, *, rngs: nnx.Rngs):
+        self.conv1 = nnx.Conv(1, 32, kernel_size=(3, 3), padding='SAME', rngs=rngs)
+        self.conv2 = nnx.Conv(32, 64, kernel_size=(3, 3), padding='SAME', rngs=rngs)
+        self.avg_pool = partial(nnx.avg_pool,window_shape=(2, 2),strides=(2, 2),padding='SAME')
+        self.linear1 = nnx.Linear(9984, 256, rngs=rngs)
+        self.linear2 = nnx.Linear(256, 10, rngs=rngs)
 
-        x = self.global_avg_pool(x)
-        x = x.squeeze(-1)
-        x = self.fc(x)
-
+    def __call__(self, x):
+        x = self.avg_pool(nnx.relu(self.conv1(x)))
+        x = self.avg_pool(nnx.relu(self.conv2(x)))
+        x = x.reshape(x.shape[0], -1)
+        x = nnx.relu(self.linear1(x))
+        x = self.linear2(x)
         return x

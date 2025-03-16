@@ -1,70 +1,54 @@
-import torch
-import pickle
-import numpy as np
+import jax.numpy as jnp
+import jax_dataloader as jdl
 
-class Feeder_snr(torch.utils.data.Dataset):
+class Feeder_snr(jdl.Dataset):
     """ Feeder for label inputs """
-
-    def __init__(self, data_path):
-        self.data_path = data_path
-        self.load_data()
+    def __init__(self, data_path, label_path):
+        self._data = jnp.load(data_path)
+        self._label = jnp.load(label_path)
     
-    def load_data(self):
-        # data: mfcc snr device label
-        with open(self.data_path, 'rb') as file:
-            data = pickle.load(file)
-        
-        self.data = []
-        self.label = []
-
-        for i,snr in enumerate(data):
-            for j in snr:
-                self.data.append(j)
-                self.label.append(i)
-
+    def __getitem__(self, idx):
+    # expand axis(-1)
+        return {'data': self._data[idx, ..., None], 'label': self._label[idx,0].astype(jnp.int32)}
     def __len__(self):
-        return len(self.data)
+        return len(self._data)
 
-    def __getitem__(self, index):
-        # get data
-        return self.data[index][0], self.label[index]
-
-class Feeder_device(torch.utils.data.Dataset):
+class Feeder_device(jdl.Dataset):
     """ Feeder for label inputs """
+    def __init__(self, data_path, label_path, snr):
+        self._data = jnp.load(data_path)
+        self._data = self._data.reshape(3,-1,data_path.shape[1],data_path.shape[2])
+        self._label = jnp.load(label_path).reshape(3,-1)
 
-    def __init__(self, data_path, snr):
-        self.data_path = data_path
-        self.snr = snr
-        self.load_data()
-    
-    def load_data(self):
-        # data: mfcc snr device label
-        with open(self.data_path, 'rb') as file:
-            self.data = pickle.load(file)
+        for i in range(3):
+            if snr == self._label[i][0][0]:
+                self._label = self._label[i]
+                self._data = self._data[i]
+                break
         
     def __len__(self):
-        return len(self.data[self.snr])
+        return len(self._data)
 
-    def __getitem__(self, index):
+    def __getitem__(self, idx):
         # get data
-        return self.data[self.snr][index][0], self.data[self.snr][index][2]
+        return {'data': self._data[idx, ..., None], 'label': self._label[idx].astype(jnp.int32)}
 
-class Feeder_label(torch.utils.data.Dataset):
+class Feeder_label(jdl.Dataset):
     """ Feeder for label inputs """
+    def __init__(self, data_path, label_path, snr):
+        self._data = jnp.load(data_path)
+        self._data = self._data.reshape(3,-1,data_path.shape[1],data_path.shape[2])
+        self._label = jnp.load(label_path).reshape(3,-1)
 
-    def __init__(self, data_path, snr):
-        self.data_path = data_path
-        self.snr = snr
-        self.load_data()
-    
-    def load_data(self):
-        # data: mfcc snr device label
-        with open(self.data_path, 'rb') as file:
-            self.data = pickle.load(file)
+        for i in range(3):
+            if snr == self._label[i][0][0]:
+                self._label = self._label[i]
+                self._data = self._data[i]
+                break
         
     def __len__(self):
-        return len(self.data[self.snr])
+        return len(self._data)
 
-    def __getitem__(self, index):
+    def __getitem__(self, idx):
         # get data
-        return self.data[self.snr][index][0], self.data[self.snr][index][2]
+        return {'data': self._data[idx, ..., None], 'label': self._label[idx].astype(jnp.int32)}
