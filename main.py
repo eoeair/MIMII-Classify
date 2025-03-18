@@ -6,7 +6,9 @@ import optax
 
 # JAX NumPy
 import jax.numpy as jnp  
-import jax_dataloader as jdl
+
+import torch
+import numpy as np
 
 from tqdm import tqdm
 
@@ -36,25 +38,31 @@ def pred_step(model: CNN, batch):
   logits = model(batch['data'])
   return logits.argmax(axis=1)
 
+def numpy_collate(batch):
+    if isinstance(batch[0], dict):
+        return {key: numpy_collate([d[key] for d in batch]) for key in batch[0]}
+    elif isinstance(batch[0], np.ndarray):
+        return np.stack(batch)
+    else:
+        return np.array(batch)
+
 if __name__ == '__main__':
     
-    # Set the global seed to 0 for reproducibility
-    jdl.manual_seed(0) 
-    train_loader = jdl.DataLoader(
-      Feeder_snr('data/train_data.npy','data/train_label.npy'), # Can be a jdl.Dataset or pytorch or huggingface or tensorflow dataset
-      backend='jax', # Use 'jax' backend for loading data
-      batch_size=256, # Batch size 
-      shuffle=True, # Shuffle the dataloader every iteration or not
-      drop_last=False, # Drop the last batch or not
-  )
-
-    test_loader = jdl.DataLoader(
-      Feeder_snr('data/test_data.npy','data/test_label.npy'),
-      backend='jax', 
+    train_loader = torch.utils.data.DataLoader(
+      dataset=Feeder_snr('data/train_data.npy','data/train_label.npy'),
       batch_size=256,
-      shuffle=True, 
-      drop_last=False,
-  )
+      shuffle=True,
+      num_workers=8,
+      pin_memory=True,
+      collate_fn=numpy_collate)
+
+    test_loader = torch.utils.data.DataLoader(
+      Feeder_snr('data/test_data.npy','data/test_label.npy'),
+      batch_size=256,
+      shuffle=True,
+      num_workers=8,
+      pin_memory=True,
+      collate_fn=numpy_collate)
     
     # Instantiate the model.
     model = CNN(rngs=nnx.Rngs(0))
