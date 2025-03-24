@@ -37,30 +37,29 @@ def pred_step(model: CNN, batch):
   return logits.argmax(axis=1)
 
 if __name__ == '__main__':
-    # Load the data.
-    train_loader, test_loader = load_data('snr', num_workers=8, batch_size=256)
-    
-    # Instantiate the model.
-    model = CNN(rngs=nnx.Rngs(0), num_classes=3)
-    optimizer = nnx.Optimizer(model, optax.adamw(learning_rate=1e-6,b1=0.9))
-    metrics = nnx.MultiMetric(
-      accuracy=nnx.metrics.Accuracy(),
-      loss=nnx.metrics.Average('loss'),
-    )
+  # Load the data.
+  train_loader, test_loader = load_data('snr', num_workers=8, num_epochs=10, batch_size=256)
+  
+  # Instantiate the model.
+  model = CNN(rngs=nnx.Rngs(0), num_classes=3)
+  optimizer = nnx.Optimizer(model, optax.adamw(learning_rate=1e-6,b1=0.9))
+  metrics = nnx.MultiMetric(
+    accuracy=nnx.metrics.Accuracy(),
+    loss=nnx.metrics.Average('loss'),
+  )
 
-    best_acc = 0
-    checkpointer = ocp.StandardCheckpointer()
-    for epoch in range(10):
-      for batch in train_loader:
-        train_step(model, optimizer, metrics, batch)
-      print("Epoch:{}_Train Acc@1: {} loss: {} ".format(epoch+1,metrics.compute()['accuracy'],metrics.compute()['loss']))
+  best_acc = 0
+  checkpointer = ocp.StandardCheckpointer()
+  for step, batch in enumerate(train_loader):
+    train_step(model, optimizer, metrics, batch)
+    if step > 0 and step % 500 == 0:
+      print("Step:{}_Train Acc@1: {} loss: {} ".format(step,metrics.compute()['accuracy'],metrics.compute()['loss']))
       metrics.reset()  # Reset the metrics for the train set.
 
-      # Compute the metrics on the test set after each training epoch.
+      # Compute the metrics on the test set after 500 training steps.
       for test_batch in test_loader:
         eval_step(model, metrics, test_batch)
-      print("Epoch:{}_Test Acc@1: {} loss: {} ".format(epoch+1,metrics.compute()['accuracy'],metrics.compute()['loss']))
-      # Save the model if it is the best so far.
+      print("Step:{}_Test Acc@1: {} loss: {} ".format(step,metrics.compute()['accuracy'],metrics.compute()['loss']))
       if metrics.compute()['accuracy'] > best_acc:
         best_acc = metrics.compute()['accuracy']
         _, state = nnx.split(model)

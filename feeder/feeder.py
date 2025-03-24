@@ -55,7 +55,7 @@ class Feeder_label(grain.RandomAccessDataSource):
         return {'data': self._data[idx, ..., None], 'label': self._label[idx].astype(np.int32)}
 
 # modal: snr, device, label
-def load_data(modal, snr=0, num_workers=8, batch_size=256):
+def load_data(modal, snr=0, num_workers=8, num_epochs=10, batch_size=256):
     if modal == 'snr':
         train_source = Feeder_snr('data/train_data.npy','data/train_label.npy')
         test_source = Feeder_snr('data/test_data.npy','data/test_label.npy')
@@ -68,7 +68,7 @@ def load_data(modal, snr=0, num_workers=8, batch_size=256):
     
     train_sampler = grain.IndexSampler(
         num_records=len(train_source),
-        num_epochs=1,
+        num_epochs=num_epochs,
         shard_options=grain.NoSharding(),
         shuffle=True,
         seed=0)
