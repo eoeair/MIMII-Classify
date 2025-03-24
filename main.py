@@ -37,8 +37,11 @@ def pred_step(model: CNN, batch):
   return logits.argmax(axis=1)
 
 if __name__ == '__main__':
+  # hyperparameters
+  batch_size = 256
+  
   # Load the data.
-  train_loader, test_loader = load_data('snr', num_workers=8, num_epochs=10, batch_size=256)
+  train_loader, test_loader = load_data('snr', num_workers=8, num_epochs=10, batch_size=batch_size)
   
   # Instantiate the model.
   model = CNN(rngs=nnx.Rngs(0), num_classes=3)
@@ -49,10 +52,11 @@ if __name__ == '__main__':
   )
 
   best_acc = 0
+  train_steps = int(train_loader._sampler._num_epochs * train_loader._sampler._num_records / 256)
   checkpointer = ocp.StandardCheckpointer()
   for step, batch in enumerate(train_loader):
     train_step(model, optimizer, metrics, batch)
-    if step > 0 and step % 500 == 0:
+    if step > 0 and (step % 500 == 0 or step == train_steps - 1):
       print("Step:{}_Train Acc@1: {} loss: {} ".format(step,metrics.compute()['accuracy'],metrics.compute()['loss']))
       metrics.reset()  # Reset the metrics for the train set.
 
