@@ -1,22 +1,20 @@
-# The Flax NNX API.
-from flax import nnx  
-from functools import partial
-
+ # optax for optimizer
 import optax
-
-# JAX NumPy
-import jax.numpy as jnp  
-
-import torch
-import numpy as np
-
-from tqdm import tqdm
-
+# The Flax NNX API.
+from flax import nnx 
+# grain to load data
+import grain.python as grain
+# orbax to save model
+import orbax.checkpoint as ocp
+from pathlib import Path
+ckpt_dir = Path(Path.cwd() / './checkpoints')
+# model 
 from net import CNN
-from feeder import *
+# load data
+from feeder import load_data
 
 def loss_fn(model: CNN, batch):
-  logits = model(batch['data'])
+  _, logits = model(batch['data'])
   loss = optax.softmax_cross_entropy_with_integer_labels(logits=logits, labels=batch['label']).mean()
   return loss, logits
 
@@ -35,51 +33,36 @@ def eval_step(model: CNN, metrics: nnx.MultiMetric, batch):
 
 @nnx.jit
 def pred_step(model: CNN, batch):
-  logits = model(batch['data'])
+  _, logits = model(batch['data'])
   return logits.argmax(axis=1)
 
-def numpy_collate(batch):
-    if isinstance(batch[0], dict):
-        return {key: numpy_collate([d[key] for d in batch]) for key in batch[0]}
-    elif isinstance(batch[0], np.ndarray):
-        return np.stack(batch)
-    else:
-        return np.array(batch)
-
 if __name__ == '__main__':
-    
-    train_loader = torch.utils.data.DataLoader(
-      dataset=Feeder_snr('data/train_data.npy','data/train_label.npy'),
-      batch_size=256,
-      shuffle=True,
-      num_workers=8,
-      pin_memory=True,
-      collate_fn=numpy_collate)
-
-    test_loader = torch.utils.data.DataLoader(
-      Feeder_snr('data/test_data.npy','data/test_label.npy'),
-      batch_size=256,
-      shuffle=True,
-      num_workers=8,
-      pin_memory=True,
-      collate_fn=numpy_collate)
+    # Load the data.
+    train_loader, test_loader = load_data('snr', num_workers=8, batch_size=256)
     
     # Instantiate the model.
-    model = CNN(rngs=nnx.Rngs(0))
-    optimizer = nnx.Optimizer(model, optax.adamw(learning_rate=1e-4,b1=0.9))
+    model = CNN(rngs=nnx.Rngs(0), num_classes=3)
+    optimizer = nnx.Optimizer(model, optax.adamw(learning_rate=1e-6,b1=0.9))
     metrics = nnx.MultiMetric(
       accuracy=nnx.metrics.Accuracy(),
       loss=nnx.metrics.Average('loss'),
     )
 
+    best_acc = 0
+    checkpointer = ocp.StandardCheckpointer()
     for epoch in range(10):
-      for batch in tqdm(train_loader):
+      for batch in train_loader:
         train_step(model, optimizer, metrics, batch)
       print("Epoch:{}_Train Acc@1: {} loss: {} ".format(epoch+1,metrics.compute()['accuracy'],metrics.compute()['loss']))
       metrics.reset()  # Reset the metrics for the train set.
 
       # Compute the metrics on the test set after each training epoch.
-      for test_batch in tqdm(test_loader):
+      for test_batch in test_loader:
         eval_step(model, metrics, test_batch)
       print("Epoch:{}_Test Acc@1: {} loss: {} ".format(epoch+1,metrics.compute()['accuracy'],metrics.compute()['loss']))
+      # Save the model if it is the best so far.
+      if metrics.compute()['accuracy'] > best_acc:
+        best_acc = metrics.compute()['accuracy']
+        _, state = nnx.split(model)
+        checkpointer.save(ckpt_dir / 'best_snr', state)
       metrics.reset()  # Reset the metrics for the test set.
