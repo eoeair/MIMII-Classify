@@ -66,29 +66,16 @@ def load_data(modal, snr=0, num_workers=8, num_epochs=10, batch_size=256):
         train_source = Feeder_label('data/train_data.npy','data/train_label.npy', snr)
         test_source = Feeder_label('data/test_data.npy','data/test_label.npy', snr)
     
-    train_sampler = grain.IndexSampler(
-        num_records=len(train_source),
-        num_epochs=num_epochs,
-        shard_options=grain.NoSharding(),
-        shuffle=True,
-        seed=0)
-    test_sampler = grain.IndexSampler(
-        num_records=len(test_source),
-        num_epochs=1,
-        shard_options=grain.NoSharding(),
-        shuffle=True,
-        seed=0)
-
-    train_loader = grain.DataLoader(
+    train_loader = grain.load(
         data_source=train_source,
+        batch_size=batch_size,
         operations=[grain.Batch(batch_size=batch_size)],
-        sampler=train_sampler,
         worker_count=num_workers
         )
-    test_loader = grain.DataLoader(
+    test_loader = grain.load(
         data_source=test_source,
+        batch_size=batch_size,
         operations=[grain.Batch(batch_size=batch_size)],
-        sampler=test_sampler,
         worker_count=num_workers
         )
     
